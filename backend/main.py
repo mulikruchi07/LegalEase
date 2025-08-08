@@ -1,6 +1,6 @@
 import os
 import google.generativeai as genai
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import docx
@@ -17,6 +17,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
+# Define the templates folder
+TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+app.config['TEMPLATE_DIR'] = TEMPLATE_DIR
+
 # Allow requests from your React app's origin
 CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
@@ -87,7 +91,31 @@ def get_ai_suggestions(document_json, scenario_text):
         return [{"action": "ERROR", "reason": str(e)}]
 
 
-# --- API Endpoint ---
+# --- API Endpoints ---
+
+@app.route('/api/templates', methods=['GET'])
+def list_templates():
+    """
+    NEW: Returns a list of available .docx templates from the templates folder.
+    """
+    try:
+        files = [f for f in os.listdir(app.config['TEMPLATE_DIR']) if f.endswith('.docx')]
+        return jsonify(files)
+    except FileNotFoundError:
+        return jsonify({"error": "Templates directory not found."}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/templates/<filename>', methods=['GET'])
+def get_template(filename):
+    """
+    NEW: Serves a specific .docx template file.
+    """
+    try:
+        return send_from_directory(app.config['TEMPLATE_DIR'], filename, as_attachment=True)
+    except FileNotFoundError:
+        return jsonify({"error": "File not found."}), 404
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_document():
     """

@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { UploadCloud, FileText, Wand2, Download, Check, X, ThumbsUp, ThumbsDown, Calendar, AlertCircle, FileCheck2 } from 'lucide-react';
+import { UploadCloud, FileText, Wand2, Download, Check, X, ThumbsUp, ThumbsDown, Calendar, AlertCircle, FileCheck2, Library, XSquare, Menu } from 'lucide-react';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css'; // Standard CSS import
+import 'react-datepicker/dist/react-datepicker.css';
 
 // --- UTILITY --- //
 
@@ -118,11 +118,28 @@ const SuggestionCard = ({ suggestion, onUpdate }) => {
 export default function App() {
     const [file, setFile] = useState(null);
     const [scenario, setScenario] = useState('');
-    const [status, setStatus] = useState('idle'); // idle | analyzing | suggested | filling | generating | done
+    const [status, setStatus] = useState('idle');
     const [activeTab, setActiveTab] = useState('suggestions');
     const [suggestions, setSuggestions] = useState([]);
     const [originalDoc, setOriginalDoc] = useState([]);
     const [formData, setFormData] = useState({});
+    const [templates, setTemplates] = useState([]);
+    const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+    useEffect(() => {
+        // Fetch templates from the backend when the component mounts
+        const fetchTemplates = async () => {
+            try {
+                const response = await fetch('http://localhost:5001/api/templates');
+                if (!response.ok) throw new Error('Could not fetch templates');
+                const data = await response.json();
+                setTemplates(data);
+            } catch (error) {
+                console.error("Failed to fetch templates:", error);
+            }
+        };
+        fetchTemplates();
+    }, []);
 
     useEffect(() => {
         setStatus('idle');
@@ -135,6 +152,20 @@ export default function App() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
+        }
+    };
+
+    const handleTemplateSelect = async (templateName) => {
+        try {
+            const response = await fetch(`http://localhost:5001/api/templates/${templateName}`);
+            if (!response.ok) throw new Error('Could not fetch template file');
+            const blob = await response.blob();
+            const selectedFile = new File([blob], templateName, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+            setFile(selectedFile);
+            setSidebarOpen(false);
+        } catch (error) {
+            console.error("Failed to select template:", error);
+            alert(`Could not load template: ${error.message}`);
         }
     };
 
@@ -261,6 +292,7 @@ export default function App() {
     };
 
     const renderContent = () => {
+        // ... (renderContent function remains the same as the previous version)
         switch(status) {
             case 'idle':
             case 'analyzing':
@@ -362,10 +394,40 @@ export default function App() {
         <style>{`
           .react-datepicker-wrapper, .react-datepicker__input-container { width: 100%; }
         `}</style>
-        <header className="bg-white/90 backdrop-blur-lg border-b border-slate-200/80 sticky top-0 z-20">
+        
+        {/* Sidebar */}
+        <div className={`fixed inset-y-0 left-0 bg-white w-64 z-30 shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="p-4">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-bold text-indigo-600">Template Library</h2>
+                    <button onClick={() => setSidebarOpen(false)} className="p-1 rounded-full hover:bg-slate-100">
+                        <XSquare size={24} className="text-slate-500" />
+                    </button>
+                </div>
+                <ul className="space-y-2">
+                    {templates.map(template => (
+                        <li key={template}>
+                            <button 
+                                onClick={() => handleTemplateSelect(template)}
+                                className="w-full text-left flex items-center gap-3 p-2 rounded-md text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                            >
+                                <FileText size={16} />
+                                {template.replace('.docx', '')}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+        {isSidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/30 z-20"></div>}
+
+        <header className="bg-white/90 backdrop-blur-lg border-b border-slate-200/80 sticky top-0 z-10">
             <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center gap-3">
+                        <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-md hover:bg-slate-100 lg:hidden">
+                            <Menu size={24} className="text-slate-600" />
+                        </button>
                         <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-500/30"><Wand2 className="text-white" size={24}/></div>
                         <span className="text-2xl font-bold text-slate-800 tracking-tighter">LexiGenius</span>
                     </div>
@@ -380,19 +442,17 @@ export default function App() {
                     <StepCard step="1" title="Provide Inputs" isActive={status === 'idle'} isCompleted={file && scenario}>
                         <div className="space-y-4">
                             <div>
-                                <label htmlFor="file-upload" className="block text-sm font-bold text-slate-700 mb-2">Upload Agreement</label>
-                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:border-indigo-400 transition-colors">
-                                    <div className="space-y-1 text-center">
-                                        <UploadCloud className="mx-auto h-12 w-12 text-slate-400" />
-                                        <div className="flex text-sm text-slate-600 justify-center">
-                                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
-                                                <span>Upload a file</span>
-                                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".docx" />
-                                            </label>
-                                            <p className="pl-1">or drag and drop</p>
-                                        </div>
-                                        <p className="text-xs text-slate-500">DOCX up to 10MB</p>
-                                    </div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Upload Agreement</label>
+                                <div className="flex space-x-2">
+                                    <button onClick={() => setSidebarOpen(true)} className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors">
+                                        <Library size={16} />
+                                        From Library
+                                    </button>
+                                    <label htmlFor="file-upload" className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                                        <UploadCloud size={16} />
+                                        Upload File
+                                        <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".docx" />
+                                    </label>
                                 </div>
                                 {file && <p className="mt-3 text-sm font-semibold text-green-700 flex items-center gap-2 p-2 bg-green-50 rounded-md"><FileText size={16} />{file.name}</p>}
                             </div>
