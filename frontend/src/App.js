@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { UploadCloud, FileText, Wand2, Download, Check, X, ThumbsUp, ThumbsDown, Calendar, AlertCircle, FileCheck2, Library, XSquare, Menu, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, Wand2, Download, Check, X, ThumbsUp, ThumbsDown, Calendar, AlertCircle, FileCheck2, Library, XSquare, Menu, Loader2, Edit, Save } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -34,23 +34,67 @@ const StepCard = ({ step, title, children, isActive, isCompleted }) => (
     </Card>
 );
 
-const SuggestionCard = ({ suggestion, onUpdate }) => {
+const SuggestionCard = ({ suggestion, onUpdate, onEdit }) => {
     const { action, original_text, new_text, new_clause, reason, status, clause_id } = suggestion;
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedText, setEditedText] = useState(action === 'ADD' ? (new_clause?.text || '') : (new_text || ''));
+
+    useEffect(() => {
+        // Sync editedText with new_text or new_clause.text when suggestion prop changes
+        if (action === 'ADD') {
+            setEditedText(new_clause?.text || '');
+        } else {
+            setEditedText(new_text || '');
+        }
+    }, [action, new_text, new_clause]);
+
     const id = clause_id || new_clause?.clause_id;
     const actionStyles = { MODIFY: { badge: "bg-yellow-100 text-yellow-800" }, ADD: { badge: "bg-green-100 text-green-800" }, REMOVE: { badge: "bg-red-100 text-red-800" } };
     const currentStyle = actionStyles[action] || {};
+
+    const handleSave = () => {
+        onEdit(id, editedText);
+        setIsEditing(false);
+    };
+
     return (
         <Card className="mb-4 p-5 hover:shadow-xl transition-shadow duration-300 overflow-hidden">
             <div className="flex justify-between items-start">
                 <span className={`text-xs font-semibold me-2 px-3 py-1 rounded-full ${currentStyle.badge}`}>{action}</span>
-                {status === 'pending' && (<div className="flex gap-2"><button onClick={() => onUpdate(id, 'rejected')} className="p-2 rounded-full bg-red-100 hover:bg-red-200 text-red-600 transition-colors" aria-label="Reject"><X size={16} /></button><button onClick={() => onUpdate(id, 'accepted')} className="p-2 rounded-full bg-green-100 hover:bg-green-200 text-green-600 transition-colors" aria-label="Accept"><Check size={16} /></button></div>)}
-                {status !== 'pending' && (<span className={`flex items-center text-sm font-semibold ${status === 'accepted' ? 'text-green-600' : 'text-red-600'}`}>{status === 'accepted' ? <ThumbsUp size={16} className="mr-1.5"/> : <ThumbsDown size={16} className="mr-1.5"/>}{status.charAt(0).toUpperCase() + status.slice(1)}</span>)}
+                {status === 'pending' && (<div className="flex gap-2">
+                    <button onClick={() => setIsEditing(!isEditing)} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors" aria-label="Edit">
+                        {isEditing ? <X size={16} /> : <Edit size={16} />}
+                    </button>
+                    {isEditing && <button onClick={handleSave} className="p-2 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-600 transition-colors" aria-label="Save"><Save size={16} /></button>}
+                    {!isEditing && <button onClick={() => onUpdate(id, 'rejected')} className="p-2 rounded-full bg-red-100 hover:bg-red-200 text-red-600 transition-colors" aria-label="Reject"><X size={16} /></button>}
+                    {!isEditing && <button onClick={() => onUpdate(id, 'accepted')} className="p-2 rounded-full bg-green-100 hover:bg-green-200 text-green-600 transition-colors" aria-label="Accept"><Check size={16} /></button>}
+                </div>)}
+                {status !== 'pending' && (<span className={`flex items-center text-sm font-semibold ${status === 'accepted' ? 'text-green-600' : 'text-red-600'}`}>{status === 'accepted' ? <ThumbsUp size={16} className="mr-1.5" /> : <ThumbsDown size={16} className="mr-1.5" />}{status.charAt(0).toUpperCase() + status.slice(1)}</span>)}
             </div>
             <p className="text-sm text-slate-500 mt-4 mb-3 font-medium">AI Rationale: <span className="italic font-normal">{reason}</span></p>
             <div className={`border-t border-slate-200 mt-3 pt-3 space-y-3`}>
-                {action === 'MODIFY' && (<><p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Original</p><p className="text-sm text-slate-600 p-3 bg-red-50 rounded-md line-through decoration-red-400">{original_text}</p><p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suggestion</p><p className="text-sm text-slate-800 p-3 bg-green-50 rounded-md">{new_text}</p></>)}
-                {action === 'ADD' && new_clause && (<><p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Clause: <span className="font-bold text-slate-700">{new_clause.clause_title}</span></p><p className="text-sm text-slate-800 p-3 bg-green-50 rounded-md">{new_clause.text}</p></>)}
-                {action === 'REMOVE' && (<><p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suggested for Removal</p><p className="text-sm text-slate-600 p-3 bg-red-50 rounded-md">{original_text}</p></>)}
+                {action === 'MODIFY' && (<>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Original</p>
+                    <p className="text-sm text-slate-600 p-3 bg-red-50 rounded-md line-through decoration-red-400">{original_text}</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suggestion</p>
+                    {isEditing ? (
+                        <textarea value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={5} className="block w-full p-3 bg-white border border-slate-300 rounded-lg shadow-sm" />
+                    ) : (
+                        <p className="text-sm text-slate-800 p-3 bg-green-50 rounded-md whitespace-pre-wrap">{new_text}</p>
+                    )}
+                </>)}
+                {action === 'ADD' && new_clause && (<>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Clause: <span className="font-bold text-slate-700">{new_clause.clause_title}</span></p>
+                    {isEditing ? (
+                        <textarea value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={5} className="block w-full p-3 bg-white border border-slate-300 rounded-lg shadow-sm" />
+                    ) : (
+                        <p className="text-sm text-slate-800 p-3 bg-green-50 rounded-md whitespace-pre-wrap">{new_clause.text}</p>
+                    )}
+                </>)}
+                {action === 'REMOVE' && (<>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Suggested for Removal</p>
+                    <p className="text-sm text-slate-600 p-3 bg-red-50 rounded-md">{original_text}</p>
+                </>)}
             </div>
         </Card>
     );
@@ -150,7 +194,7 @@ export default function App() {
             alert(`An error occurred: ${error.message}`);
         }
     };
-    
+
     const handleSuggestionUpdate = (id, newStatus) => {
         if (suggestionsListRef.current) {
             scrollPositionRef.current = suggestionsListRef.current.scrollTop;
@@ -161,10 +205,27 @@ export default function App() {
             )
         );
     };
+
+    const handleSuggestionEdit = (id, newText) => {
+        setSuggestions(currentSuggestions =>
+            currentSuggestions.map(s => {
+                const isMatch = s.clause_id === id || (s.new_clause && s.new_clause.clause_id === id);
+                if (isMatch) {
+                    if (s.action === 'MODIFY') {
+                        return { ...s, new_text: newText, status: 'pending' };
+                    }
+                    if (s.action === 'ADD') {
+                        return { ...s, new_clause: { ...s.new_clause, text: newText }, status: 'pending' };
+                    }
+                }
+                return s;
+            })
+        );
+    };
     
     const acceptedSuggestions = useMemo(() => suggestions.filter(s => s.status === 'accepted'), [suggestions]);
     const areAllSuggestionsReviewed = suggestions.length > 0 && suggestions.every(s => s.status !== 'pending');
-    
+
     const handleGenerateDocx = async () => {
         setStatus('generatingDoc');
         try {
@@ -198,12 +259,12 @@ export default function App() {
                         {areAllSuggestionsReviewed && <p className="text-sm text-green-600 flex items-center gap-2"><Check size={16} />All reviewed. You can now generate the document.</p>}
                     </div>
                     <div ref={suggestionsListRef} className="max-h-[70vh] overflow-y-auto p-1">
-                        {suggestions.map((s, i) => <SuggestionCard key={s.clause_id || s.new_clause?.clause_id || i} suggestion={s} onUpdate={handleSuggestionUpdate} />)}
+                        {suggestions.map((s, i) => <SuggestionCard key={s.clause_id || s.new_clause?.clause_id || i} suggestion={s} onUpdate={handleSuggestionUpdate} onEdit={handleSuggestionEdit} />)}
                     </div>
                 </Card>
             );
         }
-        
+
         const centralContent = {
             'idle': { icon: <Wand2 size={48} />, title: 'AI Assistant is Ready', text: 'Select a template or upload your document to begin.' },
             'scenarioInput': { icon: <FileText size={48} />, title: 'Base Details Saved', text: 'Now, describe your custom scenario in the panel on the left.' },
@@ -217,7 +278,7 @@ export default function App() {
     return (<div className="min-h-screen bg-slate-50/50 font-sans text-slate-800">
         <style>{`.react-datepicker-wrapper, .react-datepicker__input-container { width: 100%; }`}</style>
         <div className={`fixed inset-y-0 left-0 bg-white w-72 z-30 shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="p-4"><div className="flex justify-between items-center mb-4"><h2 className="text-lg font-bold text-indigo-600">Template Library</h2><button onClick={() => setSidebarOpen(false)} className="p-1 rounded-full hover:bg-slate-100"><XSquare size={24} className="text-slate-500" /></button></div><ul className="space-y-2">{templates.map(template => (<li key={template}><button onClick={() => handleTemplateSelect(template)} className="w-full text-left flex items-center gap-3 p-2 rounded-md text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"><FileText size={16} />{template.replace('.docx', '')}</button></li>))}</ul></div>
+            <div className="p-4"><div className="flex justify-between items-center mb-4"><h2 className="text-lg font-bold text-indigo-600">Template Library</h2><button onClick={() => setSidebarOpen(false)} className="p-1 rounded-full hover:bg-slate-100"><XSquare size={24} className="text-slate-500" /></button></div><ul className="space-y-2">{templates.map(template => (<li key={template}><button onClick={() => handleTemplateSelect(template)} className="w-full text-left flex items-center gap-3 p-2 rounded-md text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"><Library size={16} />{template.replace('.docx', '')}</button></li>))}</ul></div>
         </div>
         {isSidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/30 z-20"></div>}
         {status === 'baseForm' && (
@@ -251,7 +312,7 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-4 space-y-6">
                     <StepCard step="1" title="Select Document" isActive={status === 'idle'} isCompleted={!!file}>
-                         <div className="flex space-x-2"><button onClick={() => setSidebarOpen(true)} className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"><Library size={16} /> From Library</button><label htmlFor="file-upload" className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"><UploadCloud size={16} /> Upload File<input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".docx" /></label></div>
+                        <div className="flex space-x-2"><button onClick={() => setSidebarOpen(true)} className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"><Library size={16} /> From Library</button><label htmlFor="file-upload" className="flex-1 flex items-center justify-center gap-2 p-3 text-sm font-semibold rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"><UploadCloud size={16} /> Upload File<input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} accept=".docx" /></label></div>
                         {file && <p className="mt-3 text-sm font-semibold text-green-700 flex items-center gap-2 p-2 bg-green-50 rounded-md"><FileText size={16} />{file.name}</p>}
                     </StepCard>
                     <StepCard step="2" title="Describe & Analyze" isActive={status === 'scenarioInput' || status === 'analyzing'} isCompleted={status === 'suggested' || status === 'done'}>
@@ -261,7 +322,7 @@ export default function App() {
                         </div>
                     </StepCard>
                     <StepCard step="3" title="Generate Document" isActive={status === 'suggested' || status === 'fillDetails'} isCompleted={status === 'done'}>
-                         <p className="text-sm text-slate-600">Review the AI suggestions, then generate your final document.</p>
+                        <p className="text-sm text-slate-600">Review the AI suggestions, then generate your final document.</p>
                         <button disabled={!areAllSuggestionsReviewed || status === 'generatingDoc'} onClick={handleGenerateDocx} className="mt-6 w-full flex items-center justify-center gap-2 px-6 py-3 text-base font-bold rounded-lg shadow-lg shadow-green-500/20 text-white bg-green-600 hover:bg-green-700 disabled:bg-slate-400 disabled:cursor-not-allowed transform hover:scale-105 transition-all duration-300">{status === 'generatingDoc' ? (<><Loader2 className="animate-spin" size={20} /><span>Generating...</span></>) : (<><Download size={20} /><span>Generate & Download</span></>)}</button>
                     </StepCard>
                 </div>
