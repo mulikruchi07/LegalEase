@@ -15,6 +15,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found. Please set it in the .env file.")
 
 genai.configure(api_key=GEMINI_API_KEY)
+# make .env file in same directory and paste the api key like so GEMINI_API_KEY="example_key"
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
